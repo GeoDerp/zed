@@ -47,12 +47,12 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
 
       - name: Install cargo-audit
-        uses: taiki-e/install-action@v2
+        uses: taiki-e/install-action@2f0c8c3dd47cebb6a2e219d2f4782555026a7566 # v2
         with:
           tool: cargo-audit
 
       - name: Install cargo-deny
-        uses: taiki-e/install-action@v2
+        uses: taiki-e/install-action@2f0c8c3dd47cebb6a2e219d2f4782555026a7566 # v2
         with:
           tool: cargo-deny
 
