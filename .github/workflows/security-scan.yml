@@ -10,8 +10,8 @@
 # Semgrep, and CodeQL are uploaded as SARIF files and appear in the
 # repository's Security > Code scanning alerts UI.
 # On pull requests, scan summaries appear in the job step summary and
-# counts are set as step outputs. SAST jobs fail on high or greater
-# severity findings.
+# counts are set as step outputs. SAST jobs fail on error-level
+# findings.
 # cargo-audit and cargo-deny results surface as CI annotations directly in pull requests.
 
 name: Security Scanning
@@ -89,9 +89,18 @@ jobs:
             ./
         continue-on-error: true
 
+      - name: Verify SARIF output
+        id: osv-verify
+        if: always() && github.event_name != 'pull_request'
+        run: |
+          if [[ ! -f osv-results.sarif ]]; then
+            echo "::error::OSV-Scanner did not produce a SARIF file — the scan may have failed to run"
+            exit 1
+          fi
+
       - name: Upload SARIF
         uses: github/codeql-action/upload-sarif@820e3160e279568db735cee8ed8f8e77a6da7818 # v3
-        if: always() && github.event_name != 'pull_request'
+        if: always() && steps.osv-verify.outcome == 'success'
         with:
           sarif_file: osv-results.sarif
           category: osv-scanner
@@ -120,6 +129,7 @@ jobs:
   # Produces a SARIF report uploaded to GitHub Code Scanning.
   semgrep:
     name: "SAST — Semgrep"
+    if: github.repository_owner == 'zed-industries'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -139,9 +149,18 @@ jobs:
             .
         continue-on-error: true
 
+      - name: Verify SARIF output
+        id: semgrep-verify
+        if: always() && github.event_name != 'pull_request'
+        run: |
+          if [[ ! -f semgrep-results.sarif ]]; then
+            echo "::error::Semgrep did not produce a SARIF file — the scan may have failed to run"
+            exit 1
+          fi
+
       - name: Upload SARIF
         uses: github/codeql-action/upload-sarif@820e3160e279568db735cee8ed8f8e77a6da7818 # v3
-        if: always() && github.event_name != 'pull_request'
+        if: always() && steps.semgrep-verify.outcome == 'success'
         with:
           sarif_file: semgrep-results.sarif
           category: semgrep
@@ -157,12 +176,12 @@ jobs:
             echo "high_severity_count=${high_count}" >> "$GITHUB_OUTPUT"
             {
               echo "### Semgrep Results"
-              echo "${count} finding(s), ${high_count} high/critical"
+              echo "${count} finding(s), ${high_count} error-level"
               echo ""
               jq -r '[.runs[] | (.results // [])[]] | .[:20][] | "- [\(.level)] \(.ruleId): \(.message.text)"' semgrep-results.sarif
             } >> "$GITHUB_STEP_SUMMARY"
             if [[ "${high_count}" -gt 0 ]]; then
-              echo "::error::Semgrep found ${high_count} high or critical severity finding(s)"
+              echo "::error::Semgrep found ${high_count} error-level finding(s)"
               exit 1
             fi
           else
@@ -176,6 +195,7 @@ jobs:
   # analysis) so no compilation is required.
   codeql:
     name: "SAST — CodeQL"
+    if: github.repository_owner == 'zed-industries'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -206,12 +226,12 @@ jobs:
             echo "high_severity_count=${high_count}" >> "$GITHUB_OUTPUT"
             {
               echo "### CodeQL Results"
-              echo "${count} finding(s), ${high_count} high/critical"
+              echo "${count} finding(s), ${high_count} error-level"
               echo ""
               jq -r '[.runs[] | (.results // [])[]] | .[:20][] | "- [\(.level)] \(.ruleId): \(.message.text)"' "${sarif_file}"
             } >> "$GITHUB_STEP_SUMMARY"
             if [[ "${high_count}" -gt 0 ]]; then
-              echo "::error::CodeQL found ${high_count} high or critical severity finding(s)"
+              echo "::error::CodeQL found ${high_count} error-level finding(s)"
               exit 1
             fi
           else
