@@ -26,6 +26,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
   security-events: write
 
 defaults:
@@ -59,7 +60,12 @@ jobs:
         run: cargo audit
 
       - name: Run cargo-deny (advisories)
+        if: always()
         run: cargo deny check advisories
+
+      - name: Run cargo-deny (licenses)
+        if: always()
+        run: cargo deny check licenses
 
   # ── SCA: Broad dependency scanning (OSV) ──────────────────────────────
   # Google's OSV-Scanner checks Cargo.lock, Dockerfiles, pyproject.toml,
@@ -104,7 +110,8 @@ jobs:
               jq -r '[.runs[] | (.results // [])[]] | .[:20][] | "- \(.ruleId): \(.message.text)"' osv-results.sarif
             } >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "vulnerability_count=0" >> "$GITHUB_OUTPUT"
+            echo "::error::OSV-Scanner did not produce a SARIF file — the scan may have failed to run"
+            exit 1
           fi
 
   # ── SAST: Semgrep rules-based scanning ────────────────────────────────
@@ -159,8 +166,8 @@ jobs:
               exit 1
             fi
           else
-            echo "finding_count=0" >> "$GITHUB_OUTPUT"
-            echo "high_severity_count=0" >> "$GITHUB_OUTPUT"
+            echo "::error::Semgrep did not produce a SARIF file — the scan may have failed to run"
+            exit 1
           fi
 
   # ── SAST: CodeQL deep semantic analysis ───────────────────────────────
